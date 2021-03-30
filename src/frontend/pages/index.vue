@@ -1,10 +1,5 @@
 <template>
-  <v-row justify="center" align="center" no-gutters>
-    <v-col cols="12">
-      <v-btn color="pink" fab class="ma-2" @click="showNewDialog()"
-        ><v-icon>mdi-plus</v-icon></v-btn
-      >
-    </v-col>
+  <v-row justify="center" align="center">
     <v-dialog v-model="newDialog" max-width="480px">
       <v-form>
         <v-card>
@@ -53,12 +48,28 @@
         >
       </v-card>
     </v-dialog>
-    <v-col cols="12" xs="12" sm="8" md="6" lg="4" xl="4">
-      <template v-for="image in images">
+    <v-col cols="12">
+      <v-btn color="pink" fab class="ma-2" @click="showNewDialog()"
+        ><v-icon>mdi-plus</v-icon></v-btn
+      >
+    </v-col>
+    <template v-for="image in images">
+      <v-col cols="12" xs="12" sm="12" md="6" lg="4" xl="4">
         <v-card class="pa-2 ma-2" outlined tile>
-          <v-img :src="image.url" @click="showEditDialog(image.id)"> </v-img>
-          <v-card-title v-text="image.date"></v-card-title>
-          <v-card-text v-text="image.name"></v-card-text>
+          <v-img
+            :src="image.url"
+            max-height="360"
+            @click="showEditDialog(image.id)"
+          >
+          </v-img>
+          <v-card-title
+            @click="showEditDialog(image.id)"
+            v-text="image.date"
+          ></v-card-title>
+          <v-card-text
+            @click="showEditDialog(image.id)"
+            v-text="image.name"
+          ></v-card-text>
           <v-card-actions>
             <v-btn
               color="grey"
@@ -72,8 +83,8 @@
             >
           </v-card-actions>
         </v-card>
-      </template>
-    </v-col>
+      </v-col>
+    </template>
   </v-row>
 </template>
 
