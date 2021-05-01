@@ -128,6 +128,7 @@ export default {
       formData.append('id', this.id)
       formData.append('imageFile', this.imageFile)
       await this.$axios.put('/api/updateImage', formData)
+      this.editDialog = false
       location.reload()
     },
     showDeleteConfirm(id) {
@@ -138,6 +139,7 @@ export default {
       const formData = new FormData()
       formData.append('id', this.id)
       await this.$axios.put('/api/deleteImage', formData)
+      this.deleteConfirm = false
       location.reload()
     },
   },

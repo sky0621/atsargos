@@ -213,12 +213,7 @@ func updateImage(firestoreCli *firestore.Client, uploadGCSObjectFunc uploadGCSOb
 			}
 		}
 
-		if imageFile == nil {
-			if err := deleteGCSObjectFunc(c.Request().Context(), id); err != nil {
-				fmt.Println(err)
-				return c.String(http.StatusInternalServerError, err.Error())
-			}
-		} else {
+		if imageFile != nil {
 			f, err := imageFile.Open()
 			if err != nil {
 				fmt.Println(err)
