@@ -91,9 +91,13 @@
 <script>
 export default {
   async asyncData({ app }) {
-    const response = await app.$axios.$get('/api/list')
-    return {
-      images: response,
+    try {
+      const response = await app.$axios.$get('/api/list')
+      return {
+        images: response,
+      }
+    } catch (e) {
+      console.log(e)
     }
   },
   data() {
@@ -120,14 +124,22 @@ export default {
       const formData = new FormData()
       formData.append('name', this.name)
       formData.append('imageFile', this.imageFile)
-      await this.$axios.post('/api/addImage', formData)
+      try {
+        await this.$axios.post('/api/addImage', formData)
+      } catch (e) {
+        console.log(e)
+      }
       location.reload()
     },
     async updateImage() {
       const formData = new FormData()
       formData.append('id', this.id)
       formData.append('imageFile', this.imageFile)
-      await this.$axios.put('/api/updateImage', formData)
+      try {
+        await this.$axios.put('/api/updateImage', formData)
+      } catch (e) {
+        console.log(e)
+      }
       this.editDialog = false
       location.reload()
     },
@@ -138,7 +150,11 @@ export default {
     async deleteImage() {
       const formData = new FormData()
       formData.append('id', this.id)
-      await this.$axios.put('/api/deleteImage', formData)
+      try {
+        await this.$axios.put('/api/deleteImage', formData)
+      } catch (e) {
+        console.log(e)
+      }
       this.deleteConfirm = false
       location.reload()
     },
