@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
+	"github.com/slack-go/slack"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
@@ -36,6 +37,10 @@ func main() {
 	cred := os.Getenv("SA_CREDENTIALS")
 	if cred == "" {
 		log.Fatal("no SA_CREDENTIALS")
+	}
+	slackToken := os.Getenv("SLACK_API_TOKEN")
+	if slackToken == "" {
+		log.Fatal("no SLACK_API_TOKEN")
 	}
 
 	/*
@@ -78,6 +83,8 @@ func main() {
 			}
 		}
 	}()
+
+	// GCSへの画像ファイルアップロード関数
 	uploadGCSObjectFunc := func(ctx context.Context, objectName string, reader io.Reader) error {
 		writer := storageCli.Bucket(bucketName).Object(objectName).NewWriter(ctx)
 		defer func() {
@@ -93,6 +100,8 @@ func main() {
 		}
 		return nil
 	}
+
+	// GCSからの画像ファイル削除関数
 	deleteGCSObjectFunc := func(ctx context.Context, objectName string) error {
 		if err := storageCli.Bucket(bucketName).Object(objectName).Delete(ctx); err != nil {
 			fmt.Println(err)
@@ -116,6 +125,9 @@ func main() {
 		}
 	}()
 
+	// Slack API クライアント
+	slackCli := slack.New(slackToken, slack.OptionDebug(true))
+
 	/*
 	 * Web APIサーバーとしての設定
 	 */
@@ -129,6 +141,7 @@ func main() {
 	e.POST("/api/addImage", addImage(firestoreCli, uploadGCSObjectFunc))
 	e.PUT("/api/updateImage", updateImage(firestoreCli, uploadGCSObjectFunc, deleteGCSObjectFunc))
 	e.PUT("/api/deleteImage", deleteImage(firestoreCli, deleteGCSObjectFunc))
+	e.GET("/api/notify", notify(firestoreCli, slackCli))
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -257,6 +270,40 @@ func deleteImage(firestoreCli *firestore.Client, deleteGCSObjectFunc deleteGCSOb
 			return c.String(http.StatusInternalServerError, err.Error())
 		}
 
+		return nil
+	}
+}
+
+func notify(firestoreCli *firestore.Client, slackCli *slack.Client) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		iter := firestoreCli.Collection("image").Documents(c.Request().Context())
+		for {
+			doc, err := iter.Next()
+			if err == iterator.Done {
+				break
+			}
+			if err != nil {
+				return err
+			}
+			var image *Image
+			if err := doc.DataTo(&image); err != nil {
+				fmt.Println(err)
+				return c.String(http.StatusInternalServerError, err.Error())
+			}
+
+			iDate, err := time.Parse("2006-01-02", image.Date)
+			if err != nil {
+				fmt.Println(err)
+				return c.String(http.StatusInternalServerError, err.Error())
+			}
+			if time.Now().AddDate(0, 0, -3).After(iDate) {
+				_, _, _, err := slackCli.SendMessageContext(c.Request().Context(), "general", slack.MsgOptionText(fmt.Sprintf("[%s][%s]", image.Name, image.Date), false))
+				if err != nil {
+					fmt.Printf("%#v\n", err)
+					return err
+				}
+			}
+		}
 		return nil
 	}
 }
