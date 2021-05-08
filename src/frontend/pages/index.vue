@@ -116,6 +116,7 @@ export default {
     showNewDialog() {
       this.newDialog = true
     },
+
     showEditDialog(id) {
       this.id = id
       this.editDialog = true

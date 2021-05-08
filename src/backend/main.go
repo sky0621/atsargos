@@ -1,8 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"image"
+	"image/gif"
+	"image/jpeg"
+	"image/png"
 	"io"
 	"log"
 	"net/http"
@@ -17,6 +22,7 @@ import (
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
 	"github.com/slack-go/slack"
+	"golang.org/x/image/draw"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
@@ -62,7 +68,6 @@ func main() {
 			fmt.Println(err)
 			return "", err
 		}
-		fmt.Printf("signedURL:%s\n", url)
 
 		return url, nil
 	}
@@ -86,6 +91,10 @@ func main() {
 
 	// GCSへの画像ファイルアップロード関数
 	uploadGCSObjectFunc := func(ctx context.Context, objectName string, reader io.Reader) error {
+		rImg, err := resizedImage(reader)
+		if err != nil {
+			return fmt.Errorf("resizedImage: %v", err)
+		}
 		writer := storageCli.Bucket(bucketName).Object(objectName).NewWriter(ctx)
 		defer func() {
 			if writer != nil {
@@ -95,7 +104,7 @@ func main() {
 			}
 		}()
 		writer.ContentType = "image/png"
-		if _, err = io.Copy(writer, reader); err != nil {
+		if _, err = io.Copy(writer, rImg); err != nil {
 			return fmt.Errorf("io.Copy: %v", err)
 		}
 		return nil
@@ -131,22 +140,24 @@ func main() {
 	/*
 	 * Web APIサーバーとしての設定
 	 */
-	e := echo.New()
-	e.Use(middleware.Logger())
-	e.Use(middleware.Recover())
-	e.Use(middleware.CORS())
+	var e *echo.Echo
+	{
+		e = echo.New()
+		e.Use(middleware.Logger())
+		e.Use(middleware.Recover())
+		e.Use(middleware.CORS())
 
-	e.GET("/*", static())
-	e.GET("/api/list", list(firestoreCli, signedURLFunc))
-	e.POST("/api/addImage", addImage(firestoreCli, uploadGCSObjectFunc))
-	e.PUT("/api/updateImage", updateImage(firestoreCli, uploadGCSObjectFunc, deleteGCSObjectFunc))
-	e.PUT("/api/deleteImage", deleteImage(firestoreCli, deleteGCSObjectFunc))
-	e.GET("/api/notify", notify(firestoreCli, slackCli))
+		e.GET("/*", static())
+		e.GET("/api/list", list(firestoreCli, signedURLFunc))
+		e.POST("/api/addImage", addImage(firestoreCli, uploadGCSObjectFunc))
+		e.PUT("/api/updateImage", updateImage(firestoreCli, uploadGCSObjectFunc, deleteGCSObjectFunc))
+		e.PUT("/api/deleteImage", deleteImage(firestoreCli, deleteGCSObjectFunc))
+		e.GET("/api/notify", notify(firestoreCli, slackCli))
+	}
 
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
-		fmt.Printf("Defaulting to port %s\n", port)
 	}
 
 	if err := e.Start(":" + port); err != nil {
@@ -171,7 +182,6 @@ func static() echo.HandlerFunc {
 func addImage(firestoreCli *firestore.Client, uploadGCSObjectFunc uploadGCSObjectFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		name := c.FormValue("name")
-		fmt.Printf("name:%s\n", name)
 
 		imageFile, err := c.FormFile("imageFile")
 		if err != nil {
@@ -189,7 +199,6 @@ func addImage(firestoreCli *firestore.Client, uploadGCSObjectFunc uploadGCSObjec
 				fmt.Println(err)
 				return c.String(http.StatusInternalServerError, err.Error())
 			}
-			fmt.Printf("imageFile.Filename:%s\n", imageFile.Filename)
 
 			if err := uploadGCSObjectFunc(c.Request().Context(), id, f); err != nil {
 				fmt.Println(err)
@@ -216,7 +225,6 @@ func addImage(firestoreCli *firestore.Client, uploadGCSObjectFunc uploadGCSObjec
 func updateImage(firestoreCli *firestore.Client, uploadGCSObjectFunc uploadGCSObjectFunc, deleteGCSObjectFunc deleteGCSObjectFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		id := c.FormValue("id")
-		fmt.Printf("id:%s\n", id)
 
 		imageFile, err := c.FormFile("imageFile")
 		if err != nil {
@@ -232,7 +240,6 @@ func updateImage(firestoreCli *firestore.Client, uploadGCSObjectFunc uploadGCSOb
 				fmt.Println(err)
 				return c.String(http.StatusInternalServerError, err.Error())
 			}
-			fmt.Printf("imageFile.Filename:%s\n", imageFile.Filename)
 
 			if err := uploadGCSObjectFunc(c.Request().Context(), id, f); err != nil {
 				fmt.Println(err)
@@ -257,7 +264,6 @@ func updateImage(firestoreCli *firestore.Client, uploadGCSObjectFunc uploadGCSOb
 func deleteImage(firestoreCli *firestore.Client, deleteGCSObjectFunc deleteGCSObjectFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		id := c.FormValue("id")
-		fmt.Printf("id:%s\n", id)
 
 		_, err := firestoreCli.Collection("image").Doc(id).Delete(c.Request().Context())
 		if err != nil {
@@ -352,4 +358,45 @@ type Image struct {
 	Name string `json:"name"`
 
 	URL string `json:"url"`
+}
+
+func resizedImage(r io.Reader) (io.Reader, error) {
+	imgSrc, imgType, err := image.Decode(r)
+	if err != nil {
+		return nil, err
+	}
+
+	rctSrc := imgSrc.Bounds()
+
+	var imgDst *image.RGBA
+	{
+		dx := rctSrc.Dx()
+		dy := rctSrc.Dy()
+		for dx > 640 {
+			dx = dx / 2
+			dy = dy / 2
+		}
+		imgDst = image.NewRGBA(image.Rect(0, 0, dx, dy))
+	}
+	draw.CatmullRom.Scale(imgDst, imgDst.Bounds(), imgSrc, rctSrc, draw.Over, nil)
+
+	bf := &bytes.Buffer{}
+	switch imgType {
+	case "png":
+		if err := png.Encode(bf, imgDst); err != nil {
+			return nil, err
+		}
+	case "jpeg":
+		if err := jpeg.Encode(bf, imgDst, &jpeg.Options{Quality: 100}); err != nil {
+			return nil, err
+		}
+	case "gif":
+		if err := gif.Encode(bf, imgDst, nil); err != nil {
+			return nil, err
+		}
+	default:
+		return nil, err
+	}
+
+	return bf, nil
 }
