@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -182,6 +183,14 @@ func static() echo.HandlerFunc {
 func addImage(firestoreCli *firestore.Client, uploadGCSObjectFunc uploadGCSObjectFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		name := c.FormValue("name")
+		notifyStr := c.FormValue("notify")
+		notify, err := strconv.Atoi(notifyStr)
+		if err != nil {
+			fmt.Println(err)
+			if !strings.Contains(err.Error(), "no such file") {
+				return c.String(http.StatusInternalServerError, err.Error())
+			}
+		}
 
 		imageFile, err := c.FormFile("imageFile")
 		if err != nil {
@@ -208,9 +217,10 @@ func addImage(firestoreCli *firestore.Client, uploadGCSObjectFunc uploadGCSObjec
 
 		_, err = firestoreCli.Collection("image").Doc(id).Set(c.Request().Context(),
 			map[string]interface{}{
-				"id":   id,
-				"name": name,
-				"date": time.Now().Format("2006-01-02"),
+				"id":     id,
+				"name":   name,
+				"notify": notify,
+				"date":   time.Now().Format("2006-01-02"),
 			},
 		)
 		if err != nil {
@@ -225,6 +235,15 @@ func addImage(firestoreCli *firestore.Client, uploadGCSObjectFunc uploadGCSObjec
 func updateImage(firestoreCli *firestore.Client, uploadGCSObjectFunc uploadGCSObjectFunc, deleteGCSObjectFunc deleteGCSObjectFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		id := c.FormValue("id")
+		name := c.FormValue("name")
+		notifyStr := c.FormValue("notify")
+		notify, err := strconv.Atoi(notifyStr)
+		if err != nil {
+			fmt.Println(err)
+			if !strings.Contains(err.Error(), "no such file") {
+				return c.String(http.StatusInternalServerError, err.Error())
+			}
+		}
 
 		imageFile, err := c.FormFile("imageFile")
 		if err != nil {
@@ -250,6 +269,8 @@ func updateImage(firestoreCli *firestore.Client, uploadGCSObjectFunc uploadGCSOb
 		_, err = firestoreCli.Collection("image").Doc(id).Update(c.Request().Context(),
 			[]firestore.Update{
 				{Path: "date", Value: time.Now().Format("2006-01-02")},
+				{Path: "name", Value: name},
+				{Path: "notify", Value: notify},
 			},
 		)
 		if err != nil {
@@ -302,11 +323,13 @@ func notify(firestoreCli *firestore.Client, slackCli *slack.Client) echo.Handler
 				fmt.Println(err)
 				return c.String(http.StatusInternalServerError, err.Error())
 			}
-			if time.Now().AddDate(0, 0, -3).After(iDate) {
-				_, _, _, err := slackCli.SendMessageContext(c.Request().Context(), "general", slack.MsgOptionText(fmt.Sprintf("[%s][%s]", image.Name, image.Date), false))
-				if err != nil {
-					fmt.Printf("%#v\n", err)
-					return err
+			if image.Notify > 0 {
+				if iDate.AddDate(0, 0, image.Notify-1).Before(time.Now()) {
+					_, _, _, err := slackCli.SendMessageContext(c.Request().Context(), "general", slack.MsgOptionText(fmt.Sprintf("[%s][%s]", image.Name, image.Date), false))
+					if err != nil {
+						fmt.Printf("%#v\n", err)
+						return err
+					}
 				}
 			}
 		}
@@ -353,9 +376,10 @@ type deleteGCSObjectFunc func(ctx context.Context, objectName string) error
 type signedURLFunc func(fileName string, expires time.Time) (string, error)
 
 type Image struct {
-	ID   string `json:"id"`
-	Date string `json:"date"`
-	Name string `json:"name"`
+	ID     string `json:"id"`
+	Date   string `json:"date"`
+	Name   string `json:"name"`
+	Notify int    `json:"notify"`
 
 	URL string `json:"url"`
 }

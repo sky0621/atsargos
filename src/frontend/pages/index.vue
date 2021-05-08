@@ -10,6 +10,10 @@
           >
           <v-card-text>
             <v-text-field v-model="name" label="insert name"></v-text-field>
+            <v-text-field
+              v-model="notify"
+              label="insert notify interval"
+            ></v-text-field>
             <v-file-input
               v-model="imageFile"
               label="select image"
@@ -27,6 +31,11 @@
             ></v-card-title
           >
           <v-card-text>
+            <v-text-field v-model="name" label="insert name"></v-text-field>
+            <v-text-field
+              v-model="notify"
+              label="insert notify interval"
+            ></v-text-field>
             <v-file-input
               v-model="imageFile"
               label="select image"
@@ -59,16 +68,20 @@
           <v-img
             :src="image.url"
             max-height="360"
-            @click="showEditDialog(image.id)"
+            @click="showEditDialog(image)"
           >
           </v-img>
           <v-card-title
-            @click="showEditDialog(image.id)"
+            @click="showEditDialog(image)"
             v-text="image.date"
           ></v-card-title>
           <v-card-text
-            @click="showEditDialog(image.id)"
+            @click="showEditDialog(image)"
             v-text="image.name"
+          ></v-card-text>
+          <v-card-text
+            @click="showEditDialog(image)"
+            v-text="image.notify"
           ></v-card-text>
           <v-card-actions>
             <v-btn
@@ -109,6 +122,7 @@ export default {
 
       id: '',
       name: '',
+      notify: 0,
       imageFile: null,
     }
   },
@@ -117,13 +131,16 @@ export default {
       this.newDialog = true
     },
 
-    showEditDialog(id) {
-      this.id = id
+    showEditDialog(image) {
+      this.id = image.id
+      this.name = image.name
+      this.notify = image.notify
       this.editDialog = true
     },
     async saveImage() {
       const formData = new FormData()
       formData.append('name', this.name)
+      formData.append('notify', this.notify)
       formData.append('imageFile', this.imageFile)
       try {
         await this.$axios.post('/api/addImage', formData)
@@ -135,6 +152,8 @@ export default {
     async updateImage() {
       const formData = new FormData()
       formData.append('id', this.id)
+      formData.append('name', this.name)
+      formData.append('notify', this.notify)
       formData.append('imageFile', this.imageFile)
       try {
         await this.$axios.put('/api/updateImage', formData)
