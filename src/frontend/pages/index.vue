@@ -79,10 +79,9 @@
             @click="showEditDialog(image)"
             v-text="image.name"
           ></v-card-text>
-          <v-card-text
-            @click="showEditDialog(image)"
-            v-text="image.notify"
-          ></v-card-text>
+          <v-card-text @click="showEditDialog(image)"
+            >notify interval: {{ image.notify }} days
+          </v-card-text>
           <v-card-actions>
             <v-btn
               color="grey"
