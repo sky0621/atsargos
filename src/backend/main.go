@@ -182,6 +182,7 @@ func static() echo.HandlerFunc {
 
 func addImage(firestoreCli *firestore.Client, uploadGCSObjectFunc uploadGCSObjectFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
+		date := c.FormValue("date")
 		name := c.FormValue("name")
 		notifyStr := c.FormValue("notify")
 		notify, err := strconv.Atoi(notifyStr)
@@ -218,9 +219,9 @@ func addImage(firestoreCli *firestore.Client, uploadGCSObjectFunc uploadGCSObjec
 		_, err = firestoreCli.Collection("image").Doc(id).Set(c.Request().Context(),
 			map[string]interface{}{
 				"id":     id,
+				"date":   date,
 				"name":   name,
 				"notify": notify,
-				"date":   time.Now().Format("2006-01-02"),
 			},
 		)
 		if err != nil {
@@ -235,6 +236,7 @@ func addImage(firestoreCli *firestore.Client, uploadGCSObjectFunc uploadGCSObjec
 func updateImage(firestoreCli *firestore.Client, uploadGCSObjectFunc uploadGCSObjectFunc, deleteGCSObjectFunc deleteGCSObjectFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		id := c.FormValue("id")
+		date := c.FormValue("date")
 		name := c.FormValue("name")
 		notifyStr := c.FormValue("notify")
 		notify, err := strconv.Atoi(notifyStr)
@@ -268,7 +270,7 @@ func updateImage(firestoreCli *firestore.Client, uploadGCSObjectFunc uploadGCSOb
 
 		_, err = firestoreCli.Collection("image").Doc(id).Update(c.Request().Context(),
 			[]firestore.Update{
-				{Path: "date", Value: time.Now().Format("2006-01-02")},
+				{Path: "date", Value: date},
 				{Path: "name", Value: name},
 				{Path: "notify", Value: notify},
 			},

@@ -9,6 +9,29 @@
             ></v-card-title
           >
           <v-card-text>
+            <v-menu
+              v-model="dateMenu"
+              :close-on-content-click="false"
+              :nudge-right="40"
+              transition="scale-transition"
+              offset-y
+              min-width="290px"
+            >
+              <template #activator="{ on, attrs }">
+                <v-text-field
+                  v-model="date"
+                  label="date"
+                  prepend-icon="mdi-calendar"
+                  readonly
+                  v-bind="attrs"
+                  v-on="on"
+                ></v-text-field>
+              </template>
+              <v-date-picker
+                v-model="date"
+                @input="dateMenu = false"
+              ></v-date-picker>
+            </v-menu>
             <v-text-field v-model="name" label="insert name"></v-text-field>
             <v-text-field
               v-model="notify"
@@ -31,6 +54,29 @@
             ></v-card-title
           >
           <v-card-text>
+            <v-menu
+              v-model="dateMenu"
+              :close-on-content-click="false"
+              :nudge-right="40"
+              transition="scale-transition"
+              offset-y
+              min-width="290px"
+            >
+              <template #activator="{ on, attrs }">
+                <v-text-field
+                  v-model="date"
+                  label="date"
+                  prepend-icon="mdi-calendar"
+                  readonly
+                  v-bind="attrs"
+                  v-on="on"
+                ></v-text-field>
+              </template>
+              <v-date-picker
+                v-model="date"
+                @input="dateMenu = false"
+              ></v-date-picker>
+            </v-menu>
             <v-text-field v-model="name" label="insert name"></v-text-field>
             <v-text-field
               v-model="notify"
@@ -101,6 +147,8 @@
 </template>
 
 <script>
+import { format } from 'date-fns'
+
 export default {
   async asyncData({ app }) {
     try {
@@ -120,9 +168,12 @@ export default {
       deleteConfirm: false,
 
       id: '',
+      date: format(new Date(), 'yyyy-MM-dd'),
       name: '',
       notify: 0,
       imageFile: null,
+
+      dateMenu: false,
     }
   },
   methods: {
@@ -132,12 +183,14 @@ export default {
 
     showEditDialog(image) {
       this.id = image.id
+      this.date = image.date
       this.name = image.name
       this.notify = image.notify
       this.editDialog = true
     },
     async saveImage() {
       const formData = new FormData()
+      formData.append('date', this.date)
       formData.append('name', this.name)
       formData.append('notify', this.notify)
       formData.append('imageFile', this.imageFile)
@@ -151,6 +204,7 @@ export default {
     async updateImage() {
       const formData = new FormData()
       formData.append('id', this.id)
+      formData.append('date', this.date)
       formData.append('name', this.name)
       formData.append('notify', this.notify)
       formData.append('imageFile', this.imageFile)
