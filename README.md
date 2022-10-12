@@ -29,5 +29,6 @@ Golang v1.15
 
 GCP (App Engine)
 
+![gcp](gcp.png)
 
 https://googlecloudcheatsheet.withgoogle.com/architecture
